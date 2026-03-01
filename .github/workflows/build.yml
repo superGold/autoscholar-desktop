@@ -14,8 +14,6 @@ jobs:
         include:
           - platform: macos-latest
             target: aarch64-apple-darwin
-          - platform: macos-13
-            target: x86_64-apple-darwin
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
 
@@ -41,7 +39,7 @@ jobs:
         working-directory: src-tauri
 
       - name: Upload macOS artifacts
-        if: startsWith(matrix.platform, 'macos')
+        if: matrix.platform == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
           name: AutoScholar-${{ matrix.target }}
