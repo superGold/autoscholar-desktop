@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoScholar — DUT</title>
+    <link rel="stylesheet" href="../../../UI/class.ui.css">
+    <link rel="stylesheet" href="../vendor/font-awesome/css/all.min.css">
+    <link rel="stylesheet" href="../vendor/jquery.dataTables.min.css">
+    <script src="../vendor/jquery-3.7.1.min.js"></script>
+    <script src="../vendor/jquery.dataTables.min.js"></script>
+    <script src="../vendor/apexcharts.min.js"></script>
+    <link rel="stylesheet" href="../Tests/autoscholar.exec-theme.css">
+    <link rel="stylesheet" href="../autoscholar.theme.css">
+</head>
+<body>
+    <div id="app"></div>
+
+    <!-- Tauri fetch shim — intercepts /api-proxy calls and routes through Rust backend -->
+    <script>
+    if (window.__TAURI__) {
+        const _origFetch = window.fetch;
+        window.fetch = function(url, opts) {
+            if (typeof url === 'string' && url.includes('api-proxy')) {
+                // Determine institution API URL from the page config
+                var apiUrl = 'https://autoscholar.dut.ac.za/api.query5.php';
+                if (window.AutoScholarConfig && window.AutoScholarConfig.apiUrl) {
+                    apiUrl = window.AutoScholarConfig.apiUrl;
+                }
+                return window.__TAURI__.core.invoke('api_proxy', {
+                    url: apiUrl,
+                    body: opts && opts.body ? opts.body : ''
+                }).then(function(text) {
+                    return new Response(text, {
+                        status: 200,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                });
+            }
+            return _origFetch.call(window, url, opts);
+        };
+    }
+    </script>
+
+    <!-- UI system -->
+    <script src="../../../UI/class.ui.js"></script>
+
+    <!-- Core -->
+    <script src="../../../Core/PublonRegistry.js"></script>
+    <script src="../../../Core/Publon.js"></script>
+    <script src="../../../Core/PublonTable.js"></script>
+    <script src="../../../Core/Publome.js"></script>
+    <script src="../../../Core/PublonBinding.js"></script>
+    <script src="../../../Core/DbBinding.js"></script>
+    <script src="../../../Core/UIBinding.js"></script>
+
+    <!-- Services -->
+    <script src="../../../Services/ServiceRegistry.js"></script>
+    <script src="../../../Services/member.service.js"></script>
+    <script src="../../../Services/group.service.js"></script>
+    <script src="../../../Services/event.service.js"></script>
+    <script src="../../../Services/messages.service.js"></script>
+    <script src="../../../Services/tag.service.js"></script>
+    <script src="../../../Services/logicComposer.service.js"></script>
+    <script src="../../../Services/accreditation.service.js"></script>
+
+    <!-- QR code library -->
+    <script src="../vendor/qr-code-styling.js"></script>
+
+    <!-- AutoScholar config & domain classes -->
+    <script src="../autoscholar.config.js"></script>
+    <script src="../class.Tagger.js"></script>
+    <script src="../class.CareerViews.js"></script>
+    <script src="../class.TimetableViews.js"></script>
+
+    <!-- Student Central panels -->
+    <script src="../panels/class.StudentDashboardPanel.js"></script>
+    <script src="../panels/class.StudentResultsPanel.js"></script>
+    <script src="../panels/class.StudentSchedulePanel.js"></script>
+    <script src="../panels/class.StudentProgressPanel.js"></script>
+    <script src="../panels/class.StudentDiaryPanel.js"></script>
+    <script src="../panels/class.StudentGoalsPanel.js"></script>
+    <script src="../panels/class.StudentCareerPanel.js"></script>
+    <script src="../panels/class.StudentSupportPanel.js"></script>
+    <script src="../panels/class.StudentAboutPanel.js"></script>
+    <script src="../panels/class.StudentFinancesPanel.js"></script>
+    <script src="../panels/class.StudentDegreeMapPanel.js"></script>
+
+    <!-- AutoScholar support classes -->
+    <script src="../class.ServiceBackend.js"></script>
+    <script src="../class.ServiceBackendAdapter.js"></script>
+    <script src="../class.StaffAccessService.js"></script>
+    <script src="../class.DataAdapter.js"></script>
+    <script src="../class.ApiDataAdapter.js"></script>
+    <script src="../class.SampleDataAdapter.js"></script>
+    <script src="../class.ServiceCallManager.js"></script>
+    <script src="../class.ServiceLoader.js"></script>
+    <script src="../class.BaseSelector.js"></script>
+    <script src="../class.StudentSelector.js"></script>
+    <script src="../class.CourseSelector.js"></script>
+    <script src="../class.FacultySelector.js"></script>
+    <script src="../class.DepartmentSelector.js"></script>
+    <script src="../class.ProgrammeSelector.js"></script>
+    <script src="../class.CohortSelector.js"></script>
+    <script src="../class.AutoScholarAbout.js"></script>
+    <script src="../class.AutoScholarUtils.js"></script>
+    <script src="../class.AutoScholarErrors.js"></script>
+    <script src="../class.SecurityUtils.js"></script>
+    <script src="../class.LoadingStateManager.js"></script>
+    <script src="../class.AdapterUtils.js"></script>
+
+    <!-- Risk analysis -->
+    <script src="../classview2/class.RiskAnalyzer.js"></script>
+
+    <!-- Test rig panels -->
+    <script src="../Tests/class.TestRunner.js"></script>
+    <script src="../Tests/class.TestResultsRenderer.js"></script>
+    <script src="../Tests/class.InstApiTestSuite.js"></script>
+    <script src="../Tests/class.DbApiTestSuite.js"></script>
+    <script src="../Tests/class.StaffAuthTestSuite.js"></script>
+    <script src="../Tests/class.ComponentTestSuite.js"></script>
+    <script src="../Tests/class.StaffAdminPanel.js"></script>
+    <script src="../Tests/class.EmailPanel.js"></script>
+    <script src="../Tests/class.AutoScholarServicesPanel.js"></script>
+    <script src="../Tests/class.RiskAssessmentPanel.js"></script>
+    <script src="../Tests/class.HistoricalPerformancePanel.js"></script>
+    <script src="../Tests/class.PeerCorrelationPanel.js"></script>
+    <script src="../Tests/class.ClassAnalyticsPanel.js"></script>
+    <script src="../Tests/class.QuickPollsPanel.js"></script>
+    <script src="../Tests/class.UserManagementPanel.js"></script>
+    <script src="../Tests/class.GroupPickerModal.js"></script>
+    <script src="../Tests/class.CoursePickerPanel.js"></script>
+    <script src="../Tests/class.ProgrammePickerPanel.js"></script>
+    <script src="../Tests/class.MemberPickerModal.js"></script>
+    <script src="../Tests/class.PickerDemoPanel.js"></script>
+    <script src="../Tests/class.RoleConfigurationPanel.js"></script>
+    <script src="../Tests/class.SystemIntegrationsPanel.js"></script>
+    <script src="../Tests/class.ClassRosterPanel.js"></script>
+    <script src="../Tests/class.GradebookPanel.js"></script>
+    <script src="../Tests/class.AttendanceDPPanel.js"></script>
+    <script src="../Tests/class.RegistrationCheckPanel.js"></script>
+
+    <!-- Career Hub MicroServices -->
+    <script src="../MicroServices/ms.career.js"></script>
+    <script src="../MicroServices/ms.qualification.js"></script>
+    <script src="../Tests/class.CareerHubPanel.js"></script>
+    <script src="../Tests/class.StudentDashPanel.js"></script>
+    <script src="../Tests/class.MyResultsPanel.js"></script>
+    <script src="../Tests/class.DegreeProgressPanel.js"></script>
+    <script src="../Tests/class.CumLaudePanel.js"></script>
+    <script src="../Tests/class.EvidencePortfolioPanel.js"></script>
+    <script src="../Tests/class.StudyDiaryPanel.js"></script>
+    <script src="../Tests/class.AchievementsPanel.js"></script>
+    <script src="../Tests/class.StudentCentralPanel.js"></script>
+
+    <!-- vis-network for progression maps -->
+    <script src="../vendor/vis-network.min.js"></script>
+
+    <!-- Cytoscape.js + dagre layout -->
+    <script src="../vendor/cytoscape.min.js"></script>
+    <script src="../vendor/dagre.min.js"></script>
+    <script src="../vendor/cytoscape-dagre.js"></script>
+
+    <!-- D3.js + d3-sankey -->
+    <script src="../vendor/d3.min.js"></script>
+    <script src="../vendor/d3-sankey.min.js"></script>
+
+    <!-- Programme Analyst -->
+    <script src="../MicroServices/analyst.schema.js"></script>
+    <script src="../MicroServices/analyst.seed.js"></script>
+    <script src="../MicroServices/ms.analyst.js"></script>
+    <script src="../Tests/class.ProgAnalystBridge.js"></script>
+    <script src="../Tests/class.ProgAnalystData.js"></script>
+    <script src="../Tests/class.ProgOverviewPanel.js"></script>
+    <script src="../Tests/class.GatekeeperPanel.js"></script>
+    <script src="../Tests/class.CohortTrackerPanel.js"></script>
+    <script src="../Tests/class.CohortComparePanel.js"></script>
+    <script src="../Tests/class.ProgressionMapPanel.js"></script>
+    <script src="../Tests/class.OutcomeMappingPanel.js"></script>
+    <script src="../Tests/class.CurriculumEditorPanel.js"></script>
+    <script src="../Tests/class.CascadeRiskEngine.js"></script>
+    <script src="../Tests/class.ProgAnalystPanel.js"></script>
+
+    <!-- ClassView Connect -->
+    <script src="../Tests/classview.schema.js"></script>
+    <script src="../Tests/classview.seed.js"></script>
+    <script src="../Tests/classview.manifest.js"></script>
+    <script src="../Tests/class.ClassViewConnect.js"></script>
+
+    <!-- Chart.js -->
+    <script src="../vendor/chart.umd.min.js"></script>
+
+    <!-- Plotly.js for risk assessment and class roster charts -->
+    <script src="../vendor/plotly-2.35.0.min.js"></script>
+
+    <!-- FullCalendar -->
+    <script src="../vendor/fullcalendar.global.min.js"></script>
+
+    <!-- Casework Counsellor -->
+    <script src="../MicroServices/casework.schema.js"></script>
+    <script src="../MicroServices/casework.seed.js"></script>
+    <script src="../MicroServices/ms.casework.js"></script>
+    <script src="../Tests/class.CaseworkBridge.js"></script>
+    <script src="../Tests/class.CaseworkCounsellorPanel.js"></script>
+
+    <!-- Multi-institution panels -->
+    <script src="../Tests/class.InstitutionPanel.js"></script>
+    <script src="../Tests/class.ApiSpecPanel.js"></script>
+
+    <!-- Executive Insight -->
+    <script src="../MicroServices/ms.executive.js"></script>
+    <script src="../Tests/class.ExecSchema.js"></script>
+    <script src="../Tests/class.ExecMetrics.js"></script>
+    <script src="../Tests/class.ExecRhythmCalendar.js"></script>
+    <script src="../Tests/class.ExecExceptionEngine.js"></script>
+    <script src="../Tests/class.ExecNarrativeEngine.js"></script>
+    <script src="../Tests/class.ExecScenarioModel.js"></script>
+    <script src="../Tests/class.ExecDataLoader.js"></script>
+    <script src="../Tests/class.ExecSummaryPanel.js"></script>
+    <script src="../Tests/class.ExecDecisionRehearsalPanel.js"></script>
+    <script src="../Tests/class.ExecHierarchyPanel.js"></script>
+    <script src="../Tests/class.ExecPerformancePanel.js"></script>
+    <script src="../Tests/class.ExecStudentsPanel.js"></script>
+    <script src="../Tests/class.ExecCountsPanel.js"></script>
+    <script src="../Tests/class.ExecAssessmentPanel.js"></script>
+    <script src="../Tests/class.ExecStrategyPanel.js"></script>
+    <script src="../Tests/class.ExecAboutPanel.js"></script>
+    <script src="../Tests/class.ExecReportsPanel.js"></script>
+    <script src="../Tests/class.ExecSankeyPanel.js"></script>
+    <script src="../Tests/class.ExecutiveInsightPanel.js"></script>
+
+    <!-- Accreditation -->
+    <script src="../Tests/class.AccreditationAutomatePanel.js"></script>
+
+    <!-- Interaction system -->
+    <script src="../class.AsToast.js"></script>
+    <script src="../class.AsEmptyState.js"></script>
+    <script src="../class.AsCommandPalette.js"></script>
+    <script src="../Tests/class.FunnelStrip.js"></script>
+    <script src="../Tests/class.HealthMatrix.js"></script>
+
+    <!-- El — lightweight DOM builder -->
+    <script src="../legacy/class.El.js"></script>
+
+    <!-- AutoScholarApp + EntryFlow -->
+    <script src="../class.AutoScholarApp.js"></script>
+    <script src="../class.AutoScholarEntryFlow.js"></script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        new AutoScholarEntryFlow({
+            container: document.getElementById('app'),
+            endpoint: '/api-proxy',
+            institution: 'DUT',
+            institutionName: 'Durban University of Technology'
+        }).start();
+    });
+    </script>
+</body>
+</html>

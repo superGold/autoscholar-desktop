@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/main/tooling/cli/schema.json",
+  "productName": "AutoScholar",
+  "version": "1.0.0",
+  "identifier": "za.ac.dut.autoscholar",
+  "build": {
+    "frontendDist": "../tauri-dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "AutoScholar — DUT",
+        "width": 1440,
+        "height": 900,
+        "resizable": true,
+        "url": "Systems/AutoScholar/dut/index.html"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost https://autoscholar.dut.ac.za https://autoscholar.cput.ac.za https://autoscholar.ukzn.ac.za https://autoscholar.vut.ac.za https://autoscholar.wits.ac.za"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

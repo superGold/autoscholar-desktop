@@ -1,0 +1,13 @@
+# Rust build artifacts
+src-tauri/target/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node (if any)
+node_modules/
+
+# Test artifacts
+Tests/screenshots/
+Tests/test-results/
