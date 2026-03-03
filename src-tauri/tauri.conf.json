@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/main/tooling/cli/schema.json",
   "productName": "AutoScholar",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "identifier": "za.ac.dut.autoscholar",
   "build": {
     "frontendDist": "../tauri-dist"

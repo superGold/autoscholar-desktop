@@ -252,7 +252,7 @@ class HistoricalPerformancePanel {
                 }
 
                 const marks = courseResults.map(r => parseFloat(r.result || r.mark || r.finalMark || 0)).filter(m => !isNaN(m));
-                const stats = this._computeYearStats(marks, year);
+                const stats = this._computeYearStats(marks, year, courseResults);
                 const assessStats = this._computeAssessmentStats(assessResults);
 
                 yearDataArr.push({ year, marks, stats, assessStats, courseResults });
@@ -317,7 +317,11 @@ class HistoricalPerformancePanel {
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        return response.json();
+        const data = await response.json();
+        if (window.AS_checkSessionResponse && window.AS_checkSessionResponse(data)) {
+            throw new Error('Session expired');
+        }
+        return data;
     }
 
     // ── Response Parsing ────────────────────────────────────────────────────
@@ -365,14 +369,25 @@ class HistoricalPerformancePanel {
 
     // ── Stats Computation ───────────────────────────────────────────────────
 
-    _computeYearStats(marks, year) {
+    _computeYearStats(marks, year, courseResults = null) {
         if (!marks || marks.length === 0) return this._emptyStats(year);
 
         const sorted = [...marks].sort((a, b) => a - b);
         const n = sorted.length;
         const mean = this._mean(marks);
         const sd = this._stdDev(marks);
-        const passed = marks.filter(m => m >= this.passThreshold).length;
+        // Use PassRateCalculator for proper dedup + block-aware denominator
+        let passed, enrolled, passRate;
+        if (courseResults && courseResults.length > 0) {
+            const prStats = PassRateCalculator.computePassRate(courseResults, { denominator: 'itsOfficial' });
+            passed = prStats.passes;
+            enrolled = prStats.enrolled;
+            passRate = prStats.passRate != null ? prStats.passRate : 0;
+        } else {
+            passed = marks.filter(m => m >= this.passThreshold).length;
+            enrolled = n;
+            passRate = n > 0 ? this._r(100 * passed / n) : 0;
+        }
         const median = n % 2 === 0 ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2 : sorted[Math.floor(n / 2)];
         const q1 = this._percentile(sorted, 25);
         const q3 = this._percentile(sorted, 75);
@@ -397,8 +412,8 @@ class HistoricalPerformancePanel {
         const mode = +Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0];
 
         return {
-            year, enrolled: n, passed, failed: n - passed,
-            passRate: this._r(100 * passed / n),
+            year, enrolled, passed, failed: enrolled - passed,
+            passRate,
             mean: this._r(mean), median: this._r(median),
             stdDev: this._r(sd),
             min: this._r(Math.min(...marks)), max: this._r(Math.max(...marks)),

@@ -109,6 +109,11 @@ class AutoScholarEntryFlow {
             <button class="as-login-btn" id="as-login-btn">
                 <i class="fas fa-sign-in-alt"></i> Sign In
             </button>
+            <div class="as-login-download">
+                <a id="as-login-dl">
+                    <i class="fas fa-download"></i> Download desktop app
+                </a>
+            </div>
             <div class="as-login-footer">
                 Powered by Publon.Press
             </div>
@@ -135,6 +140,11 @@ class AutoScholarEntryFlow {
         });
         userInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') pwdInput.focus();
+        });
+
+        document.getElementById('as-login-dl').addEventListener('click', (e) => {
+            e.preventDefault();
+            AutoScholarEntryFlow.showDownloadModal();
         });
 
         userInput.focus();
@@ -166,7 +176,7 @@ class AutoScholarEntryFlow {
             const res = await fetch(this._endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'logIn', userId, pwd: password }),
+                body: JSON.stringify({ action: 'logIn', userId, pwd: password, institution: this._institution }),
                 signal: controller.signal
             });
             clearTimeout(timer);
@@ -268,6 +278,9 @@ class AutoScholarEntryFlow {
                 </div>
             </div>
             <div class="as-hub-header-right">
+                <button class="as-hub-download-btn" id="as-hub-dl">
+                    <i class="fas fa-download"></i> Desktop App
+                </button>
                 <div class="as-hub-header-avatar">${initials}</div>
                 <button class="as-hub-logout" id="as-hub-logout">
                     <i class="fas fa-sign-out-alt"></i> Sign out
@@ -334,8 +347,9 @@ class AutoScholarEntryFlow {
         this._renderFooter(wrapper);
         this._container.appendChild(wrapper);
 
-        // Wire logout
+        // Wire logout + download
         document.getElementById('as-hub-logout').addEventListener('click', () => this._logout());
+        document.getElementById('as-hub-dl').addEventListener('click', () => AutoScholarEntryFlow.showDownloadModal());
     }
 
     // ── Module Launch ─────────────────────────────────────────────────────────
@@ -423,6 +437,7 @@ class AutoScholarEntryFlow {
     // ── Session Management (globals) ──────────────────────────────────────────
 
     _setSession(session) {
+        const self = this;
         window.AS_SESSION = {
             sessionId: session.sessionId,
             logToken: session.logToken,
@@ -435,6 +450,20 @@ class AutoScholarEntryFlow {
             institution: { name: this._institutionName, code: this._institution },
             api: { endpoint: this._endpoint },
             defaults: { academicYear: new Date().getFullYear() }
+        };
+
+        // Global session-error handler — any panel can call this after an API response
+        window.AS_checkSessionResponse = function(data) {
+            if (!data || data.status !== false) return false;
+            var msg = (data.msg || data.error || '').toLowerCase();
+            if (msg.includes('session') || msg.includes('logtoken') || msg.includes('log_token') || msg.includes('not authenticated')) {
+                console.error('[AutoScholar] Session expired — logging out. Server said:', data.msg || data.error);
+                window.AS_SESSION.ready = false;
+                window.AS_SESSION.error = 'Session expired';
+                self._logout();
+                return true; // session error detected
+            }
+            return false;
         };
     }
 
@@ -514,5 +543,84 @@ class AutoScholarEntryFlow {
         const div = document.createElement('div');
         div.textContent = str || '';
         return div.innerHTML;
+    }
+
+    // ── Download Modal ─────────────────────────────────────────────────────
+
+    static DOWNLOADS = {
+        base: 'releases',
+        windows: 'AutoScholar_1.0.0_x64_en-US.msi',
+        macos: 'AutoScholar-v1.0.0_aarch64.dmg',
+        android: 'AutoScholar-v1.0.0.apk'
+    };
+
+    static showDownloadModal() {
+        // Remove any existing modal
+        const existing = document.querySelector('.as-dl-overlay');
+        if (existing) existing.remove();
+
+        const base = AutoScholarEntryFlow.DOWNLOADS.base;
+        const win = `${base}/${AutoScholarEntryFlow.DOWNLOADS.windows}`;
+        const mac = `${base}/${AutoScholarEntryFlow.DOWNLOADS.macos}`;
+        const apk = `${base}/${AutoScholarEntryFlow.DOWNLOADS.android}`;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'as-dl-overlay';
+        overlay.innerHTML = `
+            <div class="as-dl-modal">
+                <div class="as-dl-header">
+                    <h3><i class="fas fa-download" style="margin-right:8px;opacity:0.6"></i>Download AutoScholar</h3>
+                    <button class="as-dl-close" id="as-dl-close"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="as-dl-body">
+                    <div class="as-dl-desc">
+                        Install AutoScholar as a standalone desktop or mobile app.
+                        No browser or server required — connects directly to your institution's API.
+                    </div>
+                    <div class="as-dl-options">
+                        <a class="as-dl-option" href="${mac}" download="AutoScholar.dmg">
+                            <div class="as-dl-option-icon macos"><i class="fab fa-apple"></i></div>
+                            <div class="as-dl-option-text">
+                                <div class="as-dl-option-name">macOS</div>
+                                <div class="as-dl-option-detail">Apple Silicon (.dmg) — 8 MB</div>
+                            </div>
+                            <div class="as-dl-option-arrow"><i class="fas fa-download"></i></div>
+                        </a>
+                        <a class="as-dl-option" href="${win}" download="AutoScholar.msi">
+                            <div class="as-dl-option-icon windows"><i class="fab fa-windows"></i></div>
+                            <div class="as-dl-option-text">
+                                <div class="as-dl-option-name">Windows</div>
+                                <div class="as-dl-option-detail">64-bit installer (.msi) — 10 MB</div>
+                            </div>
+                            <div class="as-dl-option-arrow"><i class="fas fa-download"></i></div>
+                        </a>
+                        <a class="as-dl-option" href="${apk}" download="AutoScholar.apk">
+                            <div class="as-dl-option-icon android"><i class="fab fa-android"></i></div>
+                            <div class="as-dl-option-text">
+                                <div class="as-dl-option-name">Android</div>
+                                <div class="as-dl-option-detail">ARM64 (.apk) — 19 MB — direct download</div>
+                            </div>
+                            <div class="as-dl-option-arrow"><i class="fas fa-download"></i></div>
+                        </a>
+                    </div>
+                </div>
+                <div class="as-dl-footer">
+                    All downloads are direct from our secure server
+                </div>
+            </div>
+        `;
+
+        // Close on backdrop click or close button
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.remove();
+        });
+        document.body.appendChild(overlay);
+        document.getElementById('as-dl-close').addEventListener('click', () => overlay.remove());
+
+        // Close on Escape
+        const onEsc = (e) => {
+            if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onEsc); }
+        };
+        document.addEventListener('keydown', onEsc);
     }
 }

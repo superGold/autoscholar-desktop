@@ -97,7 +97,11 @@ class ExecDataLoader {
                 signal: controller.signal
             });
             if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            return response.json();
+            const data = await response.json();
+            if (window.AS_checkSessionResponse && window.AS_checkSessionResponse(data)) {
+                throw new Error('Session expired');
+            }
+            return data;
         } catch (e) {
             if (e.name === 'AbortError') throw new Error(`API timeout: ${action} did not respond within ${this.apiTimeout / 1000}s`);
             throw e;
@@ -448,19 +452,16 @@ class ExecDataLoader {
             const sampled = this._sampleCourses(courses);
 
             // Aggregate course results for this programme's sampled courses
-            let totalPasses = 0, totalFails = 0;
+            let totalPasses = 0, totalEnrolled = 0;
             let weightedMarkSum = 0, markDenom = 0;
             for (const course of sampled) {
                 const cCode = course.courseCode || course.course_code || course.code;
                 const results = courseResultMap[cCode] || [];
+                const prStats = PassRateCalculator.computePassRate(results, { denominator: 'itsOfficial' });
+                totalPasses += prStats.passes;
+                totalEnrolled += prStats.enrolled;
                 for (const r of results) {
                     const mark = parseFloat(r.result || r.finalMark || r.final_mark || r.mark || 0);
-                    const passCode = (r.resultCode || r.result_code || r.passStatus || r.pass_status || '').toString().toUpperCase();
-                    if (passCode.startsWith('P') || mark >= 50) {
-                        totalPasses++;
-                    } else if (passCode || mark > 0) {
-                        totalFails++;
-                    }
                     if (mark > 0) {
                         weightedMarkSum += mark;
                         markDenom++;
@@ -468,8 +469,7 @@ class ExecDataLoader {
                 }
             }
 
-            const assessed = totalPasses + totalFails;
-            const passRate = assessed > 0 ? Math.round((totalPasses / assessed) * 1000) / 10 : null;
+            const passRate = totalEnrolled > 0 ? Math.round((totalPasses / totalEnrolled) * 1000) / 10 : null;
             const mean = markDenom > 0 ? Math.round((weightedMarkSum / markDenom) * 10) / 10 : null;
 
             // Graduation rate from gradMap
@@ -673,21 +673,17 @@ class ExecDataLoader {
             const registered = courseResults.length;
 
             if (markType === 'final') {
-                // ── Final course mark ──
-                let passes = 0, fails = 0, markSum = 0, markCount = 0;
+                // ── Final course mark (block-aware dedup) ──
+                const prStats = PassRateCalculator.computePassRate(courseResults, { denominator: 'itsOfficial' });
+                let markSum = 0, markCount = 0;
                 for (const r of courseResults) {
                     const mark = parseFloat(r.result || r.finalMark || r.final_mark || r.mark || 0);
-                    const passCode = (r.resultCode || r.result_code || r.passStatus || '').toString().toUpperCase();
-                    if (passCode.startsWith('P') || mark >= 50) passes++;
-                    else if (passCode || mark > 0) fails++;
                     if (mark > 0) { markSum += mark; markCount++; }
                 }
-                const assessed = passes + fails;
-                const denom = denominator === 'registered' ? registered : assessed;
                 return {
                     courseCode: code, courseLabel: label,
-                    students: denominator === 'registered' ? registered : assessed,
-                    passRate: denom > 0 ? Math.round((passes / denom) * 1000) / 10 : null,
+                    students: prStats.enrolled,
+                    passRate: prStats.passRate,
                     mean: markCount > 0 ? Math.round((markSum / markCount) * 10) / 10 : null
                 };
             } else {

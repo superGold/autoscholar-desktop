@@ -192,8 +192,8 @@ class ClassRosterPanel {
         el.appendChild(filterRow);
 
         this._activeFilter = 'all';
-        const passCount = this._allStudents.filter(s => s.mark >= this.passThreshold).length;
-        const failCount = this._allStudents.length - passCount;
+        const passCount = this._allStudents.filter(s => s.status === 'pass').length;
+        const failCount = this._allStudents.filter(s => s.status === 'fail').length;
         const filters = [
             { key: 'all', label: `All (${this._allStudents.length})` },
             { key: 'pass', label: `Pass (${passCount})`, color: 'success' },
@@ -258,8 +258,8 @@ class ClassRosterPanel {
         var query = searchEl ? searchEl.value.toLowerCase().trim() : '';
 
         this._filteredStudents = this._allStudents.filter(s => {
-            if (this._activeFilter === 'pass' && s.mark < this.passThreshold) return false;
-            if (this._activeFilter === 'fail' && s.mark >= this.passThreshold) return false;
+            if (this._activeFilter === 'pass' && s.status !== 'pass') return false;
+            if (this._activeFilter === 'fail' && s.status !== 'fail') return false;
             if (query) {
                 const name = `${s.firstName} ${s.lastName}`.toLowerCase();
                 return name.includes(query) || String(s.studentNumber).includes(query);
@@ -309,7 +309,7 @@ class ClassRosterPanel {
         card.appendChild(header);
 
         const initials = ((student.firstName?.[0] || '') + (student.lastName?.[0] || '')).toUpperCase() || '?';
-        const avatarClass = student.mark >= this.passThreshold ? 'as-student-avatar-good' : 'as-student-avatar-risk';
+        const avatarClass = student.status === 'pass' ? 'as-student-avatar-good' : 'as-student-avatar-risk';
         const avatar = document.createElement('div');
         avatar.className = 'as-student-avatar ' + avatarClass;
         avatar.textContent = initials;
@@ -322,7 +322,7 @@ class ClassRosterPanel {
             `<div class="as-student-id">${student.studentNumber}</div>`;
         header.appendChild(nameBlock);
 
-        const pillClass = student.mark >= this.passThreshold ? 'as-status-pill-good' : 'as-status-pill-risk';
+        const pillClass = student.status === 'pass' ? 'as-status-pill-good' : 'as-status-pill-risk';
         const pill = document.createElement('span');
         pill.className = 'as-status-pill ' + pillClass;
         pill.textContent = `${this._r(student.mark)}%`;
@@ -367,9 +367,10 @@ class ClassRosterPanel {
         const students = this._allStudents;
         const marks = students.map(s => s.mark).filter(m => m > 0);
         const n = students.length;
-        const passCount = students.filter(s => s.mark >= this.passThreshold).length;
-        const failCount = n - passCount;
-        const passRate = n > 0 ? (passCount / n * 100) : 0;
+        const passCount = students.filter(s => s.status === 'pass').length;
+        const assessed = students.filter(s => s.status === 'pass' || s.status === 'fail').length;
+        const failCount = assessed - passCount;
+        const passRate = assessed > 0 ? (passCount / assessed * 100) : 0;
         const meanMark = marks.length > 0 ? this._mean(marks) : 0;
         const sd = marks.length > 1 ? this._stdDev(marks) : 0;
 
@@ -482,7 +483,7 @@ class ClassRosterPanel {
             numEl.textContent = s.studentNumber;
             row.appendChild(numEl);
 
-            const badgeClass = s.mark >= this.passThreshold ? 'cr-mark-badge-pass' : 'cr-mark-badge-fail';
+            const badgeClass = s.status === 'pass' ? 'cr-mark-badge-pass' : 'cr-mark-badge-fail';
             const markEl = document.createElement('span');
             markEl.className = `cr-mark-badge ${badgeClass}`;
             markEl.textContent = `${this._r(s.mark)}%`;
@@ -573,7 +574,7 @@ class ClassRosterPanel {
         `;
         header.appendChild(info);
 
-        const markColor = student.mark >= this.passThreshold ? 'var(--ui-success)' : 'var(--ui-danger)';
+        const markColor = student.status === 'pass' ? 'var(--ui-success)' : 'var(--ui-danger)';
         const markEl = document.createElement('div');
         markEl.className = 'cr-mark-lg';
         markEl.style.color = markColor;
@@ -761,7 +762,7 @@ class ClassRosterPanel {
 
             const mark = item.mark;
             if (mark != null && !isNaN(mark)) {
-                const badgeClass = mark >= this.passThreshold ? 'cr-mark-badge-pass' : 'cr-mark-badge-fail';
+                const badgeClass = item.status === 'pass' ? 'cr-mark-badge-pass' : 'cr-mark-badge-fail';
                 const markEl = document.createElement('span');
                 markEl.className = `cr-mark-badge ${badgeClass}`;
                 markEl.textContent = `${this._r(mark)}%`;
@@ -995,12 +996,14 @@ class ClassRosterPanel {
                 const sn = cr.studentNumber;
                 const bio = bioIndex[sn] || {};
                 const mark = parseFloat(cr.result || cr.mark || cr.finalMark || 0);
+                const resultCode = (cr.resultCode || cr.result_code || '').toString().toUpperCase();
+                const status = PassRateCalculator.classifyStudentResult(cr);
                 return {
                     studentNumber: sn,
                     firstName: bio.firstName || bio.firstNames || '',
                     lastName: bio.lastName || bio.surname || bio.lastNames || '',
                     email: bio.email || '',
-                    mark
+                    mark, resultCode, status
                 };
             });
 
@@ -1076,7 +1079,11 @@ class ClassRosterPanel {
         });
 
         if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        return response.json();
+        const data = await response.json();
+        if (window.AS_checkSessionResponse && window.AS_checkSessionResponse(data)) {
+            throw new Error('Session expired');
+        }
+        return data;
     }
 
     // ── Response Parsing ────────────────────────────────────────────────────

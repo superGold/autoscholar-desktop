@@ -464,7 +464,11 @@ class ClassAnalyticsPanel {
         });
 
         if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        return response.json();
+        const data = await response.json();
+        if (window.AS_checkSessionResponse && window.AS_checkSessionResponse(data)) {
+            throw new Error('Session expired');
+        }
+        return data;
     }
 
     _parseResponse(data) {

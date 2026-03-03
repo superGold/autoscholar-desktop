@@ -310,7 +310,11 @@ class EmailPanel {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
-        return response.json();
+        const data = await response.json();
+        if (window.AS_checkSessionResponse && window.AS_checkSessionResponse(data)) {
+            throw new Error('Session expired');
+        }
+        return data;
     }
 
     // ── Sent Mail Table ─────────────────────────────────────────────────────

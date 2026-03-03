@@ -277,6 +277,7 @@ class ApiDataAdapter extends DataAdapter {
                     action,
                     sessionId: this.auth.sessionId,
                     logToken: this.auth.logToken,
+                    institution: this.auth.institution || window.AS_INSTITUTION?.institution?.code,
                     ...params
                 }),
                 signal: controller.signal
@@ -291,6 +292,9 @@ class ApiDataAdapter extends DataAdapter {
             }
 
             const data = await response.json();
+            if (window.AS_checkSessionResponse && window.AS_checkSessionResponse(data)) {
+                throw new Error('Session expired');
+            }
             return this._parseResponse(data);
 
         } catch (error) {

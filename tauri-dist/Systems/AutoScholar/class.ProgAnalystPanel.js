@@ -748,16 +748,17 @@ class ProgAnalystPanel {
                             })
                             : allResults;
 
-                        var enrolled = results.length;
-                        var passed = 0, totalMark = 0, atRisk = 0;
-                        results.forEach(function(r) {
-                            var mark = parseFloat(r.result || r.finalMark || r.final_mark || r.mark || 0);
-                            var passCode = String(r.resultCode || r.result_code || r.passStatus || r.pass_status || '').toUpperCase();
+                        var prStats = PassRateCalculator.computePassRate(results, { denominator: 'itsOfficial' });
+                        var enrolled = prStats.enrolled;
+                        var passed = prStats.passes;
+                        var totalMark = 0, atRisk = 0;
+                        var deduped = PassRateCalculator.deduplicateResults(results);
+                        deduped.forEach(function(entry) {
+                            var mark = parseFloat(entry.record.result || entry.record.finalMark || entry.record.final_mark || entry.record.mark || 0);
                             totalMark += mark;
-                            if (passCode.charAt(0) === 'P' || mark >= 50) passed++;
-                            else if (mark >= 40) atRisk++;
+                            if (entry.classification === 'fail' && mark >= 40) atRisk++;
                         });
-                        var avgMark = enrolled > 0 ? totalMark / enrolled : 0;
+                        var avgMark = deduped.length > 0 ? totalMark / deduped.length : 0;
                         var dfw = enrolled > 0 ? ((enrolled - passed) / enrolled) * 100 : 0;
                         return {
                             code: code,
@@ -4015,7 +4016,11 @@ class ProgAnalystPanel {
             body: JSON.stringify(body)
         });
         if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + response.statusText);
-        return response.json();
+        var data = await response.json();
+        if (window.AS_checkSessionResponse && window.AS_checkSessionResponse(data)) {
+            throw new Error('Session expired');
+        }
+        return data;
     }
 
     _parseResponse(data) {

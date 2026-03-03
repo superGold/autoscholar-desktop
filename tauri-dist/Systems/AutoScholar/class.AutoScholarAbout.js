@@ -148,6 +148,9 @@ class AutoScholarAbout {
         const releaseDateText = header.add({ css: 'text-sm text-muted mt-1 ml-14' });
         releaseDateText.add({ script: `Released ${this._formatDate(versionInfo.releaseDate)}` });
 
+        // Desktop App Downloads
+        this._renderDownloads(container);
+
         // Overview Card
         this._renderOverview(container);
 
@@ -188,6 +191,36 @@ class AutoScholarAbout {
     _formatDate(dateStr) {
         const date = new Date(dateStr);
         return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    _renderDownloads(container) {
+        const card = container.add({ css: 'card p-6 mb-6' });
+        card.add({ tag: 'h2', css: 'text-xl font-semibold mb-4 flex items-center gap-2', script: '<i class="fas fa-download text-pri"></i> Desktop App' });
+
+        const desc = card.add({ css: 'text-gray-700 leading-relaxed mb-4' });
+        desc.add({ tag: 'p', script: 'AutoScholar is available as a standalone desktop application for macOS, Windows, and Android. The desktop app connects directly to your institution\'s API — no local server required.' });
+
+        const platforms = [
+            { icon: 'fab fa-apple', label: 'macOS', desc: 'Apple Silicon (.dmg)', css: 'text-gray-800' },
+            { icon: 'fab fa-windows', label: 'Windows', desc: 'Installer (.msi / .exe)', css: 'text-blue-500' },
+            { icon: 'fab fa-android', label: 'Android', desc: 'Mobile (.apk)', css: 'text-green-500' }
+        ];
+
+        const grid = card.add({ css: 'grid grid-cols-1 md:grid-cols-3 gap-3 mb-4' });
+        platforms.forEach(p => {
+            const item = grid.add({ css: 'bg-gray-50 rounded-lg p-4 text-center' });
+            item.add({ tag: 'i', css: `${p.icon} text-2xl ${p.css} mb-2` });
+            item.add({ css: 'font-medium text-sm', script: p.label });
+            item.add({ css: 'text-xs text-muted', script: p.desc });
+        });
+
+        const btnRow = card.add({ css: 'flex justify-center' });
+        const btn = btnRow.add({ tag: 'button', css: 'as-hub-download-btn', script: '<i class="fas fa-download"></i> Download Desktop App' });
+        btn.el.addEventListener('click', () => {
+            if (typeof AutoScholarEntryFlow !== 'undefined') {
+                AutoScholarEntryFlow.showDownloadModal();
+            }
+        });
     }
 
     _renderOverview(container) {

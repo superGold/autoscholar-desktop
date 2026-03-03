@@ -272,10 +272,10 @@ class ExecMetrics {
     /** Compute aggregate stats from raw course data (for API-driven mode) */
     static computeCourseStats(courses) {
         if (!courses || courses.length === 0) {
-            return { students: 0, assessed: 0, passes: 0, fails: 0, passRate: 0, mean: 0, stdDev: 0, courseCount: 0 };
+            return { students: 0, assessed: 0, passes: 0, fails: 0, absent: 0, passRate: 0, mean: 0, stdDev: 0, courseCount: 0 };
         }
 
-        let totalStudents = 0, passes = 0, fails = 0;
+        let totalStudents = 0, passes = 0, fails = 0, absent = 0;
         let weightedMeanSum = 0, meanCount = 0;
         const means = [];
 
@@ -284,6 +284,7 @@ class ExecMetrics {
             totalStudents += n;
             passes += c.passes || 0;
             fails += c.fails || 0;
+            absent += c.absent || 0;
             if (c.mean != null && n > 0) {
                 weightedMeanSum += c.mean * n;
                 meanCount += n;
@@ -308,6 +309,7 @@ class ExecMetrics {
             assessed,
             passes,
             fails,
+            absent,
             passRate:    Math.round(passRate * 10) / 10,
             mean:        Math.round(mean * 10) / 10,
             stdDev:      Math.round(stdDev * 10) / 10,

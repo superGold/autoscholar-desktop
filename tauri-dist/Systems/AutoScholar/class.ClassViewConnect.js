@@ -47,8 +47,8 @@ var ClassViewConnect = class ClassViewConnect {
         config = config || {};
         this._controlEl = null;
         this._stageEl = null;
-        this._courseCode = config.courseCode || 'MGAB401';
-        this._year = config.year || 2020;
+        this._courseCode = config.courseCode || window.AS_INSTITUTION?.defaults?.defaultCourse || '';
+        this._year = config.year || window.AS_INSTITUTION?.defaults?.academicYear || new Date().getFullYear();
         this._endpoint = config.endpoint || '/api-proxy';
         this._dataLoaded = false;
         this._activeTab = 'dashboard';
@@ -467,16 +467,19 @@ var ClassViewConnect = class ClassViewConnect {
             });
             var assessResults = this._parseResponse(assessData);
 
-            // Compute aggregates from real data
+            // Compute aggregates — 'itsOfficial' denominator uses block-aware enrolled count:
+            // enrolled = SUM(unique students per main exam block), passes = globally unique P/P*.
+            // This matches the official ITS pass rate formula used in institutional spreadsheets.
+            var prStats = PassRateCalculator.computePassRate(courseResults, { denominator: 'itsOfficial' });
+            var totalStudents = prStats.enrolled;
+            var passCount = prStats.passes;
+            var passRate = prStats.passRate || 0;
+            var atRisk = prStats.fails;
+
             var marks = courseResults.map(function(r) {
                 return parseFloat(r.result || r.mark || r.finalMark || 0);
             }).filter(function(m) { return m > 0; });
-
-            var totalStudents = courseResults.length;
             var avgMark = marks.length > 0 ? Math.round(10 * marks.reduce(function(a, b) { return a + b; }, 0) / marks.length) / 10 : 0;
-            var passCount = marks.filter(function(m) { return m >= 50; }).length;
-            var passRate = totalStudents > 0 ? Math.round(10 * 100 * passCount / totalStudents) / 10 : 0;
-            var atRisk = marks.filter(function(m) { return m < 50; }).length;
 
             // Count unique assessments
             var assessCodes = {};
@@ -619,15 +622,16 @@ var ClassViewConnect = class ClassViewConnect {
             results = this._courseResults.filter(function(r) { return allowedSet[r.studentNumber]; });
         }
 
+        var prStats = PassRateCalculator.computePassRate(results, { denominator: 'itsOfficial' });
+        var totalStudents = prStats.enrolled;
+        var passCount = prStats.passes;
+        var passRate = prStats.passRate || 0;
+        var atRisk = prStats.fails;
+
         var marks = results.map(function(r) {
             return parseFloat(r.result || r.mark || r.finalMark || 0);
         }).filter(function(m) { return m > 0; });
-
-        var totalStudents = results.length;
         var avgMark = marks.length > 0 ? Math.round(10 * marks.reduce(function(a, b) { return a + b; }, 0) / marks.length) / 10 : 0;
-        var passCount = marks.filter(function(m) { return m >= 50; }).length;
-        var passRate = totalStudents > 0 ? Math.round(10 * 100 * passCount / totalStudents) / 10 : 0;
-        var atRisk = marks.filter(function(m) { return m < 50; }).length;
 
         this._demoData.totalStudents = totalStudents;
         this._demoData.avgMark = avgMark;
@@ -712,12 +716,19 @@ var ClassViewConnect = class ClassViewConnect {
                 panels: Object.keys(this._panels)
             });
         } else {
-            // API unavailable — use standalone demo data
-            ClassViewSeed.seedDemo(this._publome);
-            this._courseResults = this._publome.table('student').all();
-            this._demoData = { totalStudents: 10, avgMark: 63.5, passRate: 70, atRisk: 3, attendance: 82, assessments: 4, missingMarks: 0, dpExclusions: 0 };
-            this._dataLoaded = true;
-            this._setStatus('Demo Mode', 'warning');
+            // No data found — show clear error, NEVER fall back to fake demo data
+            this._dataLoaded = false;
+            this._setStatus('No Data', 'danger');
+            var instName = window.AS_INSTITUTION?.institution?.name || 'this institution';
+            if (this._tabPanels.dashboard) {
+                this._tabPanels.dashboard.innerHTML =
+                    '<div class="as-empty-state">' +
+                        '<i class="fas fa-search" style="color:var(--ui-warning);"></i>' +
+                        '<div class="as-empty-state-title">No results found for ' + this._courseCode + ' (' + this._year + ')</div>' +
+                        '<div class="as-empty-state-hint">This course code may not exist at ' + instName + '. Check the code and year, or use Browse Courses to find available courses.</div>' +
+                    '</div>';
+            }
+            return;
         }
 
         this._renderKPIs(this._kpiRow);
@@ -794,11 +805,20 @@ var ClassViewConnect = class ClassViewConnect {
             body: JSON.stringify(body)
         });
         if (!response.ok) throw new Error('HTTP ' + response.status);
-        return response.json();
+        var data = await response.json();
+        if (window.AS_checkSessionResponse && window.AS_checkSessionResponse(data)) {
+            throw new Error('Session expired');
+        }
+        return data;
     }
 
     _parseResponse(data) {
         if (!data) return null;
+        // Reject API error responses — never treat them as data rows
+        if (data.status === false) {
+            console.error('[ClassView] API error:', data.msg || data.error || 'Unknown error');
+            return null;
+        }
         if (Array.isArray(data)) return data;
         if (data.fields && Array.isArray(data.data)) return this._fieldsDataToRecords(data.fields, data.data);
         if (data.results && data.results.fields && Array.isArray(data.results.data)) return this._fieldsDataToRecords(data.results.fields, data.results.data);
@@ -1060,9 +1080,10 @@ var ClassViewConnect = class ClassViewConnect {
             if (m > 0) marks.push(m);
         });
 
-        // Hero: pass rate
-        var passCount = marks.filter(function(m) { return m >= 50; }).length;
-        var passRate = marks.length > 0 ? Math.round(10 * 100 * passCount / marks.length) / 10 : 0;
+        // Hero: pass rate — use seeded status (derived from result codes)
+        var passCount = students.filter(function(s) { return s.get('status') === 'pass'; }).length;
+        var assessed = students.filter(function(s) { var st = s.get('status'); return st === 'pass' || st === 'fail'; }).length;
+        var passRate = assessed > 0 ? Math.round(10 * 100 * passCount / assessed) / 10 : 0;
         var passColor = passRate >= 70 ? 'var(--ex-clr-success)' : passRate >= 50 ? 'var(--ex-clr-warning)' : 'var(--ex-clr-danger)';
 
         var html = '<div class="cv-dash-stat-row">';
@@ -1206,10 +1227,10 @@ var ClassViewConnect = class ClassViewConnect {
                 progStudents.forEach(function(sn) {
                     var student = students.find(function(s) { return s.get('studentNumber') === sn; });
                     if (student) {
-                        var m = parseFloat(student.get('finalMark') || 0);
-                        if (m > 0) {
+                        var st = student.get('status');
+                        if (st === 'pass' || st === 'fail') {
                             total++;
-                            if (m >= 50) passCount++;
+                            if (st === 'pass') passCount++;
                         }
                     }
                 });
@@ -2262,6 +2283,10 @@ var ClassViewConnect = class ClassViewConnect {
      */
     _parseCourseCounts(data) {
         if (!data) return null;
+        if (data.status === false) {
+            console.error('[ClassView] getCourseCounts API error:', data.msg || data.error || 'Unknown error');
+            return null;
+        }
         var inner = data.courseCount || data;
         if (inner.fields && Array.isArray(inner.data)) {
             return this._fieldsDataToRecords(inner.fields, inner.data);
@@ -2301,7 +2326,7 @@ var ClassViewConnect = class ClassViewConnect {
                     self._setStatus('API unavailable', 'danger');
                     new uiAlert({
                         title: 'Cannot Browse Courses',
-                        message: 'The getCourseCounts API returned no data. Ensure the test server is running and connected to an institution API.',
+                        message: 'The getCourseCounts API returned no data. This may indicate an expired session — try refreshing the page and logging in again.',
                         variant: 'danger',
                         parent: self._stageEl,
                         dismissible: true

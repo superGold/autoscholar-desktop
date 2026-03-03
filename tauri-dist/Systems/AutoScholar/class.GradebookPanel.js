@@ -398,7 +398,9 @@ class GradebookPanel {
                 return {
                     id: String(sn),
                     name: bio.firstName || bio.firstNames || '',
-                    surname: bio.lastName || bio.surname || bio.lastNames || ''
+                    surname: bio.lastName || bio.surname || bio.lastNames || '',
+                    resultCode: (cr.resultCode || cr.result_code || '').toString().toUpperCase(),
+                    itsStatus: PassRateCalculator.classifyStudentResult(cr)
                 };
             });
             this._students.sort((a, b) => (a.surname || '').localeCompare(b.surname || ''));
@@ -480,7 +482,11 @@ class GradebookPanel {
             body: JSON.stringify(body)
         });
         if (!response.ok) throw new Error('HTTP ' + response.status);
-        return response.json();
+        var data = await response.json();
+        if (window.AS_checkSessionResponse && window.AS_checkSessionResponse(data)) {
+            throw new Error('Session expired');
+        }
+        return data;
     }
 
     async _fetchBioData(studentNumbers) {
